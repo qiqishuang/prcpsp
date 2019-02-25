@@ -6,7 +6,7 @@ import time
 import gurobipy as grb
 
 
-def get_constants(it):
+def get_constants(i, j):
     def _floor(x, y):
         try:
             return floor(x / y)
@@ -16,17 +16,21 @@ def get_constants(it):
     from lcalg import process
     from math import floor
     start = time.time()
-    n, T, K, p, R, r, E, V, A, LB, ES, LS = process(it)
+    n, T, K, p, R, r, E, V, A, ES, LS, LB_2 = process(i, j)
     duration = time.time() - start
+    A_new = []
+    for (i, j) in [item for item in A]:
+        if i != 1 and j != n:
+            A_new.append((i, j))
     V = range(1, n)
     p_minus = [min(dur, floor(dur / 2)) for dur in p]
-    N = int(sum([_floor(p[i], p_minus[i]) for i in range(len(p))]))
+    N = int(sum([_floor(p[k], p_minus[k]) for k in range(len(p))]))
     # Updated number of events for preemptions
     E = range(N - 2)
-    return n, N, T, K, p, p_minus, R, r, E, V, A, LB, ES, LS, duration
+    return n, N, T, K, p, p_minus, R, r, E, V, A_new, ES, LS, LB_2, duration
 
 
-def generate_constraints(it):
+def generate_constraints(i, j):
 
     def _create_variables():
         z = model.addVars([(i, e) for i in V for e in range(-1, N - 2)],
@@ -35,8 +39,8 @@ def generate_constraints(it):
                           vtype="C", lb=0.0)
         t = model.addVars([e for e in E], name="t", vtype="C",
                           lb=0.0, ub=T)
-        C_max = model.addVar(name="C_max", vtype="C",
-                                                 lb=int(LB), ub=T, obj=1)
+        C_max = model.addVar(name="C_max", vtype="C", lb=int(LB_2),
+                             ub=T, obj=1)
         model.update()
         return z, a, t, C_max
 
@@ -106,11 +110,11 @@ def generate_constraints(it):
         model.update()
         return
 
-    model = grb.Model("Linear Program %s" % it)
+    model = grb.Model("Linear Program %s, %s" % (i, j))
     model.setParam('TimeLimit', 5 * 60)
     # load constants
-    n, N, T, K, p, p_minus, R, r, E, V, A, LB, ES, LS, duration_prec = \
-        get_constants(it)
+    n, N, T, K, p, p_minus, R, r, E, V, A, ES, LS, LB_2, duration_prec = \
+        get_constants(i, j)
     # Create variables
     z, a, t, C_max = _create_variables()
     # Constraints
@@ -119,19 +123,19 @@ def generate_constraints(it):
     return model, E[-1], duration_prec
 
 
-def optimise(model, it, duration_prec):
+def optimise(model, i, j, duration_prec):
     start = time.time()
     model.optimize()
     runtime = time.time() - start
     if model.getAttr("Status") == 3:  # Infeasible
         model.computeIIS()
-        model.write("./output/model_%s.ilp" % it)
+        model.write("./output/model%s_%s.ilp" % (i, j))
         return
     else:
-        model.write("./output/solution_%s.sol" % it)
-        file_out = open("./output/j301_results.txt", "a")
-        file_out.write('%s \t %s \t %s \t %s \t %s \n ' %
-                       (it, model.objVal, runtime,
+        model.write("./output/solution%s_%s.sol" % (i, j))
+        file_out = open("./output/j30_results.txt", "a")
+        file_out.write('%s \t %s \t %s \t %s \t %s \t %s \n ' %
+                       (i, j, model.objVal, runtime,
                         model.Runtime, duration_prec))
         file_out.close()
         return
@@ -141,9 +145,10 @@ def optimise(model, it, duration_prec):
 
 
 def main():
-    for it in range(1, 11):
-        model, last, duration_prec = generate_constraints(it)
-        optimise(model, it, duration_prec)
+    for i in range(1, 49):
+        for j in range(1, 11):
+            model, last, duration_prec = generate_constraints(i, j)
+            optimise(model, i, j, duration_prec)
 
 
 if __name__ == main():
