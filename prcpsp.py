@@ -1,4 +1,4 @@
-''' Preemptive formulation for the interval-based resource
+''' Preemptive formulation for the event-based resource
 constrained scheduling problem.
 Written by David Torres Sanchez, 2019: d.torressanchez@lancaster.ac.uk'''
 
